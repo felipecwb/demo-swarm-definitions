@@ -1,0 +1,54 @@
+version: "3.7"
+
+networks:
+  proxy_frontend:
+    external: true
+
+volumes:
+  portainer:
+    driver: local
+
+services:
+  portainer:
+    image: portainer/portainer:latest
+    command: -H unix:///var/run/docker.sock
+    networks:
+      - proxy_frontend
+    volumes:
+      - portainer:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      mode: global
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: any
+        delay: 5s
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        traefik.enable: 'true'
+        traefik.port: '9000'
+        traefik.frontend.rule: 'Host:portainer.${DOMAIN}'
+
+  visualizer:
+    image: dockersamples/visualizer
+    networks:
+      - proxy_frontend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+      labels:
+        traefik.enable: 'true'
+        traefik.port: '8080'
+        traefik.frontend.rule: "Host:visualizer.${DOMAIN}"
+

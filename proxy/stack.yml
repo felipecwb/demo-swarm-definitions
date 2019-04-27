@@ -1,0 +1,47 @@
+version: "3.7"
+
+networks:
+  frontend:
+    driver: overlay
+    attachable: true
+
+volumes:
+  data:
+    driver: local
+
+services:
+  traefik:
+    image: traefik:latest
+    command:
+      - "--docker"
+      - "--docker.watch"
+      - "--docker.swarmMode"
+      - "--docker.network=proxy_frontend"
+      - "--docker.exposedbydefault=false"
+      - "--entrypoints=Name:http Address::80"
+      - "--defaultentrypoints=http"
+      - "--accessLog"
+      - "--web"
+      - "--api"
+    ports:
+      - target: 80
+        published: 80
+    networks:
+      - frontend
+    volumes:
+      - data:/tmp
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      mode: global
+      update_config:
+        parallelism: 2
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: any
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        traefik.enable: 'true'
+        traefik.port: '8080'
+        traefik.frontend.rule: "Host:traefik.${DOMAIN}"

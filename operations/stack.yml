@@ -1,0 +1,56 @@
+version: '3'
+
+networks:
+  proxy_frontend:
+    external: true
+
+volumes:
+  jenkins:
+    driver: local
+
+services:
+  jenkins:
+    image: jenkinsci/blueocean:latest
+    networks:
+      - proxy_frontend
+    volumes:
+      - jenkins:/var/jenkins_home
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        failure_action: rollback
+      labels:
+        traefik.enable: 'true'
+        traefik.port: '8080'
+        traefik.frontend.rule: "Host:jenkins.${DOMAIN}"
+
+  netdata:
+    image: netdata/netdata:latest
+    hostname: '{{.Node.Hostname}}.monitor'
+    environment:
+      VIRTUAL_HOST: '{{.Node.Hostname}}.monitor'
+    privileged: true
+    networks:
+      - proxy_frontend
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 2
+        delay: 10s
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        traefik.enable: 'true'
+        traefik.port: '19999'
+        traefik.frontend.rule: "Host:monitor.${DOMAIN}"
